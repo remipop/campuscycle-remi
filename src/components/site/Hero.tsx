@@ -6,8 +6,8 @@
 // page's record and the media library in /admin; the actions from src/app/(site)/page.tsx.
 import Image from 'next/image'
 import type { ReactNode } from 'react'
-
-// W4: a site by Remi
+// W4: put your own name in this tagline
+const TAGLINE = 'a site by Remi'
 const TAGLINE = 'Bicycle workshops on campus · a site by the Campus Cycle team'
 
 type HeroProps = {
