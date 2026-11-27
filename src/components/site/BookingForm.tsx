@@ -16,6 +16,7 @@
 // The box that says what went wrong is BookingProblem.tsx, the button BookingSubmitButton.tsx.
 //
 // What to change for your own site: the labels and the words. Keep the hidden fields and the notice.
+import { formatPrice } from '@/lib/format'
 import { unstable_rethrow } from 'next/navigation'
 import { createContext, use, useActionState, useEffect, useRef } from 'react'
 import { BookingProblem } from '@/components/site/BookingProblem'
@@ -102,7 +103,7 @@ function RepairChoice({ repairs }: { repairs: BookingFormProps['repairs'] }) {
         // and add this line at the top of the file, under the other import lines:
         //   import { formatPrice } from '@/lib/format'
         // It reads each repair's own price, from the same record as the price list: nothing is copied.
-        const label = repair.name
+        const label = repair.name + ', ' + formatPrice(repair.price)
         return (
           <label key={repair.id} className="flex min-h-11 items-center gap-3">
             <input
