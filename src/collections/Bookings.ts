@@ -1,5 +1,11 @@
 import type { CollectionConfig } from 'payload'
-import { editorsOnly, editorsOnlyField, editorsOrOwnBookingField, editorsOrOwnBookings, nobody } from '../access'
+import {
+  editorsOnly,
+  editorsOnlyField,
+  editorsOrOwnBookingField,
+  editorsOrOwnBookings,
+  nobody,
+} from '../access'
 import { membersAreaOn } from '../lib/membersArea'
 import { requireExistingRelation } from '../lib/modelIntegrity'
 import { checkPlaces } from '../tasks/book-slot/capacity'
@@ -58,6 +64,7 @@ export const Bookings: CollectionConfig = {
       type: 'textarea',
     },
     // Add new booking fields here.
+    { name: 'repairs', type: 'relationship', relationTo: 'repairs', hasMany: true },
 
     // The optional members' area (src/lib/membersArea.ts): the member who was logged in when they
     // booked. Only the booking form's server code fills it in, from the log-in cookie, never from what
@@ -104,7 +111,8 @@ export const Bookings: CollectionConfig = {
       admin: {
         readOnly: true,
         position: 'sidebar',
-        description: 'Filled in by the booking form. It stops the same form from saving two bookings.',
+        description:
+          'Filled in by the booking form. It stops the same form from saving two bookings.',
       },
     },
   ],
