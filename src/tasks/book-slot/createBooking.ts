@@ -18,7 +18,13 @@ import { allowRequest, BOOKING_LIMIT, isTrapFilled } from './guards'
 
 // The fields a user fills in, as text. On any failure they go back to the form, so nothing is lost.
 // repairs: the ids of the repairs the user ticked (W6's repair choice); empty until W6.
-export type BookingValues = { timeSlot: string; name: string; email: string; note: string; repairs?: string[] }
+export type BookingValues = {
+  timeSlot: string
+  name: string
+  email: string
+  note: string
+  repairs?: string[]
+}
 export type BookingField = Exclude<keyof BookingValues, 'repairs'>
 
 export type BookingResult =
@@ -43,8 +49,10 @@ export type BookingContext = { payload: Payload; ip: string; now: Date; member?:
 
 export const NOT_SAVED_MESSAGE = 'Your booking was not saved. Please try again.'
 export const TOO_MANY_MESSAGE = 'Too many bookings from this device. Try again in an hour.'
-export const SERVER_PROBLEM_MESSAGE = 'Your booking was not saved because of a problem on our side. Please try again in a minute.'
-export const FORM_USED_MESSAGE = 'This form already saved a booking. Reload the page to make another booking.'
+export const SERVER_PROBLEM_MESSAGE =
+  'Your booking was not saved because of a problem on our side. Please try again in a minute.'
+export const FORM_USED_MESSAGE =
+  'This form already saved a booking. Reload the page to make another booking.'
 // The bookings collection's own check says this when a slot is deleted while someone is booking it
 // (src/collections/Bookings.ts keeps the text).
 export { SLOT_GONE_MESSAGE }
@@ -72,7 +80,10 @@ function readValues(formData: FormData): BookingValues {
     name: read(formData, 'name'),
     email: read(formData, 'email'),
     note: read(formData, 'note'),
-    repairs: formData.getAll('repairs').map(String).filter((id) => /^\d+$/.test(id)),
+    repairs: formData
+      .getAll('repairs')
+      .map(String)
+      .filter((id) => /^\d+$/.test(id)),
   }
 }
 
@@ -100,10 +111,25 @@ async function check(values: BookingValues, clinicSlug: string, { payload, now }
   if (!values.timeSlot) {
     errors.timeSlot = 'Choose a time.'
   } else {
-    const clinic = (await payload.find({ collection: 'clinics', where: { slug: { equals: clinicSlug } }, depth: 0, limit: 1, joins: false })).docs[0]
-    const slot = Number.isInteger(slotId) && slotId > 0
-      ? await payload.findByID({ collection: 'timeSlots', id: slotId, depth: 0, joins: false, disableErrors: true })
-      : null
+    const clinic = (
+      await payload.find({
+        collection: 'clinics',
+        where: { slug: { equals: clinicSlug } },
+        depth: 0,
+        limit: 1,
+        joins: false,
+      })
+    ).docs[0]
+    const slot =
+      Number.isInteger(slotId) && slotId > 0
+        ? await payload.findByID({
+            collection: 'timeSlots',
+            id: slotId,
+            depth: 0,
+            joins: false,
+            disableErrors: true,
+          })
+        : null
     // depth: 0 gives the slot's clinic as a plain id.
     if (!clinic || !slot || slot.clinic !== clinic.id) {
       errors.timeSlot = 'Choose one of the times on this page.'
@@ -126,19 +152,32 @@ async function check(values: BookingValues, clinicSlug: string, { payload, now }
 }
 
 // The answer for fields with problems: one sentence for the top of the form, and each field's message.
-function fieldProblems(errors: Partial<Record<BookingField, string>>, values: BookingValues): BookingResult {
+function fieldProblems(
+  errors: Partial<Record<BookingField, string>>,
+  values: BookingValues,
+): BookingResult {
   const fields = Object.keys(errors) as BookingField[]
-  const message = fields.length === 1
-    ? 'Your booking was not saved. Check the field marked below.'
-    : `Your booking was not saved. Check the ${fields.length} fields marked below.`
+  const message =
+    fields.length === 1
+      ? 'Your booking was not saved. Check the field marked below.'
+      : `Your booking was not saved. Check the ${fields.length} fields marked below.`
   return { ok: false, message, field: fields[0], errors, values }
 }
 
 // The booking this same form already saved, if any. Read with overrideAccess: true, because bookings
 // are private: only this server code looks, and it never shows the booking's name or e-mail address.
-async function savedEarlier(payload: Payload, requestId: string | undefined): Promise<Booking | undefined> {
+async function savedEarlier(
+  payload: Payload,
+  requestId: string | undefined,
+): Promise<Booking | undefined> {
   if (!requestId) return undefined
-  const found = await payload.find({ collection: 'bookings', where: { requestId: { equals: requestId } }, depth: 0, limit: 1, overrideAccess: true })
+  const found = await payload.find({
+    collection: 'bookings',
+    where: { requestId: { equals: requestId } },
+    depth: 0,
+    limit: 1,
+    overrideAccess: true,
+  })
   return found.docs[0]
 }
 
@@ -152,7 +191,10 @@ function sameBooking(earlier: Booking, values: BookingValues): BookingResult {
 }
 
 /** Checks and saves one booking from the clinic page's form. Never throws: every outcome is an answer. */
-export async function createBooking(formData: FormData, context: BookingContext): Promise<BookingResult> {
+export async function createBooking(
+  formData: FormData,
+  context: BookingContext,
+): Promise<BookingResult> {
   try {
     return await checkAndSave(formData, context)
   } catch (error) {
@@ -176,7 +218,7 @@ async function checkAndSave(formData: FormData, context: BookingContext): Promis
 
   // W6: switch on the repair choice. Remove the // in front of the next line, and of `repairs,` in
   // payload.create below. It keeps only whole numbers, the ids of the repairs the user ticked.
-  // const repairs = formData.getAll('repairs').map(Number).filter(Number.isInteger)
+  const repairs = formData.getAll('repairs').map(Number).filter(Number.isInteger)
 
   // 1. The trap field. The message says only that the booking was not saved: a program that filled
   // the trap learns nothing about why.
@@ -197,7 +239,12 @@ async function checkAndSave(formData: FormData, context: BookingContext): Promis
   // 4. The rate limit. allowRequest counts first and then remembers this send, in two steps, so a few
   // sends at the very same moment can slip past the limit together. That is fine for a spam guard;
   // the places rule (below), which must be exact, uses a lock.
-  if (!(await allowRequest(ip, BOOKING_LIMIT.requests, BOOKING_LIMIT.minutes, { payload, now: context.now }))) {
+  if (
+    !(await allowRequest(ip, BOOKING_LIMIT.requests, BOOKING_LIMIT.minutes, {
+      payload,
+      now: context.now,
+    }))
+  ) {
     return { ok: false, message: TOO_MANY_MESSAGE, values }
   }
 
@@ -215,7 +262,7 @@ async function checkAndSave(formData: FormData, context: BookingContext): Promis
         requestId,
         // The logged-in member, never anything the form sends: only with the members' area on.
         member: membersAreaOn() ? context.member : undefined,
-        // repairs,
+        repairs,
       },
       overrideAccess: true,
     })
@@ -229,11 +276,23 @@ async function checkAndSave(formData: FormData, context: BookingContext): Promis
 
     // The slot was full (or deleted) by the time of the save. timeSlot: '' so that no time stays
     // chosen; saveBooking.ts refreshes the page, so the slot then shows as Full.
-    if (error instanceof APIError && (error.message === FULL_MESSAGE || error.message === SLOT_GONE_MESSAGE)) {
-      return { ok: false, message: error.message, field: 'timeSlot', errors: { timeSlot: error.message }, values: { ...values, timeSlot: '' } }
+    if (
+      error instanceof APIError &&
+      (error.message === FULL_MESSAGE || error.message === SLOT_GONE_MESSAGE)
+    ) {
+      return {
+        ok: false,
+        message: error.message,
+        field: 'timeSlot',
+        errors: { timeSlot: error.message },
+        values: { ...values, timeSlot: '' },
+      }
     }
     // The database's own e-mail check refused the address (the check above should already have).
-    if (error instanceof ValidationError && error.data.errors.some((problem) => problem.path === 'email')) {
+    if (
+      error instanceof ValidationError &&
+      error.data.errors.some((problem) => problem.path === 'email')
+    ) {
       return fieldProblems({ email: EMAIL_MESSAGE }, values)
     }
     // Anything else: createBooking above answers with "a problem on our side".

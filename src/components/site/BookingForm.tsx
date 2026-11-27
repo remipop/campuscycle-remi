@@ -62,7 +62,10 @@ export function useSentValues(): BookingValues {
  * then gets a "lost" answer and keeps everything the user typed, and the same requestId. If the
  * booking was in fact saved, sending it again returns that same booking (createBooking.ts, step 3).
  */
-async function sendBooking(previous: BookingResult | null, formData: FormData): Promise<BookingResult> {
+async function sendBooking(
+  previous: BookingResult | null,
+  formData: FormData,
+): Promise<BookingResult> {
   try {
     return await saveBooking(previous, formData)
   } catch (error) {
@@ -71,7 +74,12 @@ async function sendBooking(previous: BookingResult | null, formData: FormData): 
     unstable_rethrow(error)
     // For the developer: the browser's console says why the request was lost.
     console.error('The booking request got no answer:', error)
-    return { ok: false, lost: true, message: 'The server could not be reached.', values: typedValues(formData) }
+    return {
+      ok: false,
+      lost: true,
+      message: 'The server could not be reached.',
+      values: typedValues(formData),
+    }
   }
 }
 
@@ -79,31 +87,37 @@ async function sendBooking(previous: BookingResult | null, formData: FormData): 
 // Then replace the whole line {/* W6: <RepairChoice repairs={props.repairs} /> */} in the form below
 // with <RepairChoice repairs={props.repairs} />. The server side is the two lines the W6 comment in
 // createBooking.ts names (src/tasks/book-slot/createBooking.ts).
-// function RepairChoice({ repairs }: { repairs: BookingFormProps['repairs'] }) {
-//   // The repairs ticked in the last send, so they stay ticked when the form comes back.
-//   const sent = useSentValues()
-//   return (
-//     <fieldset className="grid gap-3">
-//       <legend className="mb-1 font-semibold">
-//         Repairs <span className="font-normal text-ink-soft">(optional)</span>
-//       </legend>
-//       {repairs.map((repair) => {
-//         // To show each repair's price too, replace the line under this comment with this line:
-//         //   const label = repair.name + ', ' + formatPrice(repair.price)
-//         // and add this line at the top of the file, under the other import lines:
-//         //   import { formatPrice } from '@/lib/format'
-//         // It reads each repair's own price, from the same record as the price list: nothing is copied.
-//         const label = repair.name
-//         return (
-//           <label key={repair.id} className="flex min-h-11 items-center gap-3">
-//             <input type="checkbox" name="repairs" value={repair.id} defaultChecked={sent.repairs?.includes(String(repair.id))} className="size-5 accent-ink" />
-//             {label}
-//           </label>
-//         )
-//       })}
-//     </fieldset>
-//   )
-// }
+function RepairChoice({ repairs }: { repairs: BookingFormProps['repairs'] }) {
+  // The repairs ticked in the last send, so they stay ticked when the form comes back.
+  const sent = useSentValues()
+  return (
+    <fieldset className="grid gap-3">
+      <legend className="mb-1 font-semibold">
+        Repairs <span className="font-normal text-ink-soft">(optional)</span>
+      </legend>
+      {repairs.map((repair) => {
+        // To show each repair's price too, replace the line under this comment with this line:
+        //   const label = repair.name + ', ' + formatPrice(repair.price)
+        // and add this line at the top of the file, under the other import lines:
+        //   import { formatPrice } from '@/lib/format'
+        // It reads each repair's own price, from the same record as the price list: nothing is copied.
+        const label = repair.name
+        return (
+          <label key={repair.id} className="flex min-h-11 items-center gap-3">
+            <input
+              type="checkbox"
+              name="repairs"
+              value={repair.id}
+              defaultChecked={sent.repairs?.includes(String(repair.id))}
+              className="size-5 accent-ink"
+            />
+            {label}
+          </label>
+        )
+      })}
+    </fieldset>
+  )
+}
 
 export function BookingForm(props: BookingFormProps) {
   const { clinic, slots, requestId, member } = props
@@ -114,7 +128,8 @@ export function BookingForm(props: BookingFormProps) {
   // A member who is logged in starts with their own name and e-mail address filled in, and can still
   // change them; without a name on their account the name field stays empty (never the e-mail address).
   // After a send that did not save, what they really typed comes back instead.
-  const values = failed?.values ?? (member ? { ...EMPTY, name: member.name, email: member.email } : EMPTY)
+  const values =
+    failed?.values ?? (member ? { ...EMPTY, name: member.name, email: member.email } : EMPTY)
   const errors: Partial<Record<BookingField, string>> = failed?.errors ?? {}
 
   // After a failed send, move the keyboard focus to the box at the top: a screen reader reads it out,
@@ -158,7 +173,15 @@ export function BookingForm(props: BookingFormProps) {
             Your name <span className="font-normal text-ink-soft">(required)</span>
           </Label>
           {/* scroll-mt-16: a link from the error box scrolls the field into view with its label above. */}
-          <Input id="name" name="name" autoComplete="name" required defaultValue={values.name} className="scroll-mt-16" {...problem('name')} />
+          <Input
+            id="name"
+            name="name"
+            autoComplete="name"
+            required
+            defaultValue={values.name}
+            className="scroll-mt-16"
+            {...problem('name')}
+          />
           {errors.name && <FieldError id="name-error">{errors.name}</FieldError>}
         </div>
 
@@ -166,7 +189,16 @@ export function BookingForm(props: BookingFormProps) {
           <Label htmlFor="email">
             Your e-mail address <span className="font-normal text-ink-soft">(required)</span>
           </Label>
-          <Input id="email" name="email" type="email" autoComplete="email" required defaultValue={values.email} className="scroll-mt-16" {...problem('email')} />
+          <Input
+            id="email"
+            name="email"
+            type="email"
+            autoComplete="email"
+            required
+            defaultValue={values.email}
+            className="scroll-mt-16"
+            {...problem('email')}
+          />
           {errors.email && <FieldError id="email-error">{errors.email}</FieldError>}
         </div>
 
@@ -174,7 +206,9 @@ export function BookingForm(props: BookingFormProps) {
           <Label htmlFor="note">
             Note <span className="font-normal text-ink-soft">(optional)</span>
           </Label>
-          <p id="note-hint" className="text-ink-soft">For example, what is wrong with your bicycle. At most 500 characters.</p>
+          <p id="note-hint" className="text-ink-soft">
+            For example, what is wrong with your bicycle. At most 500 characters.
+          </p>
           <Textarea
             id="note"
             name="note"
@@ -186,7 +220,7 @@ export function BookingForm(props: BookingFormProps) {
           {errors.note && <FieldError id="note-error">{errors.note}</FieldError>}
         </div>
 
-        {/* W6: <RepairChoice repairs={props.repairs} /> */}
+        <RepairChoice repairs={props.repairs} />
 
         {/* The trap field: name="extra" is TRAP_FIELD in src/tasks/book-slot/guards.ts (keep the two the
             same). People never see it, a screen reader skips it (aria-hidden) and Tab never reaches it
@@ -195,7 +229,14 @@ export function BookingForm(props: BookingFormProps) {
             that are switched off that way. After a failed send it is empty again. */}
         <div aria-hidden="true" className="absolute -left-[9999px] h-px w-px overflow-hidden">
           <label htmlFor="extra">Leave this field empty</label>
-          <input id="extra" name="extra" type="text" tabIndex={-1} autoComplete="off" defaultValue="" />
+          <input
+            id="extra"
+            name="extra"
+            type="text"
+            tabIndex={-1}
+            autoComplete="off"
+            defaultValue=""
+          />
         </div>
 
         <Notice>
