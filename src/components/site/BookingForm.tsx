@@ -31,6 +31,7 @@ import type { Repair } from '@/payload-types'
 import type { BookingField, BookingResult, BookingValues } from '@/tasks/book-slot/createBooking'
 import { saveBooking } from '@/tasks/book-slot/saveBooking'
 import { typedValues } from '@/tasks/book-slot/typedValues'
+import { formatPrice } from '@/lib/format'
 
 type BookingFormProps = {
   // The clinic's slug: the server checks that the chosen time belongs to this clinic.
