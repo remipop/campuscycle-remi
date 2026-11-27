@@ -35,13 +35,17 @@ function switchedOn(source: string): string {
   if (!lines.some((line) => line.startsWith('// function RepairChoice('))) return withExports(lines)
   const start = lines.findIndex((line) => line.startsWith('// function RepairChoice('))
   const end = lines.findIndex((line, i) => i > start && line === '// }')
-  if (start < 0 || end < 0) throw new Error('The W6 RepairChoice block was not found in BookingForm.tsx')
+  if (start < 0 || end < 0)
+    throw new Error('The W6 RepairChoice block was not found in BookingForm.tsx')
   for (let i = start; i <= end; i++) lines[i] = lines[i].replace(/^\/\/ ?/, '')
   // "Replace the whole line": the line in the form that holds only the placeholder (the instructions
   // above it quote the same text, and stay as they are).
   const placeholder = lines.findIndex((line) => line.trim() === PLACEHOLDER)
   if (placeholder < 0) throw new Error('The W6 placeholder line was not found in BookingForm.tsx')
-  lines[placeholder] = lines[placeholder].replace(PLACEHOLDER, '<RepairChoice repairs={props.repairs} />')
+  lines[placeholder] = lines[placeholder].replace(
+    PLACEHOLDER,
+    '<RepairChoice repairs={props.repairs} />',
+  )
   return withExports(lines)
 }
 
@@ -52,10 +56,17 @@ function switchedOn(source: string): string {
  */
 function withPriceFix(source: string): string | null {
   const lines = source.split('\n')
-  const quoted = (start: string) => lines.find((line) => line.trimStart().startsWith(`//   ${start}`))?.trim().replace(/^\/\/\s+/, '')
+  const quoted = (start: string) =>
+    lines
+      .find((line) => line.trimStart().startsWith(`//   ${start}`))
+      ?.trim()
+      .replace(/^\/\/\s+/, '')
   const newLabel = quoted('const label = ')
   const newImport = quoted('import { formatPrice }')
-  const label = lines.findIndex((line) => line.trim() === 'const label = repair.name')
+  const label = lines.findIndex(
+    (line) => line.trim() === 'const label = repair.name + ',
+    ' + formatPrice(repair.price)',
+  )
   if (!newLabel || !newImport || label < 0) return null
   lines[label] = lines[label].replace('const label = repair.name', newLabel)
   const lastImport = lines.reduce((last, line, i) => (line.startsWith('import ') ? i : last), -1)
@@ -75,37 +86,82 @@ describe.runIf(EXAMPLE.repairs)('W6 switched on: the ticked repairs survive a fa
   let w6: {
     RepairChoice: ComponentType<{ repairs: { id: number; name: string; price: number }[] }>
     SentValues: React.Context<unknown>
-    BookingForm: ComponentType<{ clinic: string; slots: { id: number; label: string; placesLeft: number }[]; requestId: string; repairs: { id: number; name: string; price: number }[] }>
+    BookingForm: ComponentType<{
+      clinic: string
+      slots: { id: number; label: string; placesLeft: number }[]
+      requestId: string
+      repairs: { id: number; name: string; price: number }[]
+    }>
   }
   let p: Payload
   let slotId: number
-  const repairs = [{ id: 1, name: 'Check', price: 10 }, { id: 2, name: 'Each small repair', price: 5 }, { id: 3, name: 'Full service', price: 45 }]
+  const repairs = [
+    { id: 1, name: 'Check', price: 10 },
+    { id: 2, name: 'Each small repair', price: 5 },
+    { id: 3, name: 'Full service', price: 45 },
+  ]
 
   beforeAll(async () => {
     folder = mkdtempSync(path.join(tmpdir(), 'bw-starter-w6-'))
     const file = path.join(folder, 'BookingForm.w6.tsx')
-    writeFileSync(file, switchedOn(readFileSync(path.join(root, 'src/components/site/BookingForm.tsx'), 'utf8')))
+    writeFileSync(
+      file,
+      switchedOn(readFileSync(path.join(root, 'src/components/site/BookingForm.tsx'), 'utf8')),
+    )
     w6 = await import(/* @vite-ignore */ file)
     p = await getTestPayload()
   })
   beforeEach(async () => {
     await resetCollections(['bookings', 'timeSlots', 'clinics', 'throttle'])
-    const clinic = await p.create({ collection: 'clinics', data: { name: 'Test clinic', slug: 'test-clinic', day: 'Saturday', startTime: '15:00', endTime: '17:00', summary: 'Test instance.' } })
-    slotId = (await p.create({ collection: 'timeSlots', data: { clinic: clinic.id, startsAt: new Date(Date.now() + 6 * 24 * 60 * 60 * 1000).toISOString(), places: 1 } })).id
+    const clinic = await p.create({
+      collection: 'clinics',
+      data: {
+        name: 'Test clinic',
+        slug: 'test-clinic',
+        day: 'Saturday',
+        startTime: '15:00',
+        endTime: '17:00',
+        summary: 'Test instance.',
+      },
+    })
+    slotId = (
+      await p.create({
+        collection: 'timeSlots',
+        data: {
+          clinic: clinic.id,
+          startsAt: new Date(Date.now() + 6 * 24 * 60 * 60 * 1000).toISOString(),
+          places: 1,
+        },
+      })
+    ).id
   })
   afterAll(async () => {
     rmSync(folder, { recursive: true, force: true })
     await resetCollections(['bookings', 'timeSlots', 'clinics', 'throttle'])
   })
 
-  const checked = (html: string) => [...html.matchAll(/<input type="checkbox"[^>]*>/g)].filter(([tag]) => /checked=""/.test(tag)).map(([tag]) => /value="(\d+)"/.exec(tag)?.[1])
+  const checked = (html: string) =>
+    [...html.matchAll(/<input type="checkbox"[^>]*>/g)]
+      .filter(([tag]) => /checked=""/.test(tag))
+      .map(([tag]) => /value="(\d+)"/.exec(tag)?.[1])
   // The switched-on repair choice inside the form's "what was sent last time".
   const render = (sent: unknown) =>
-    renderToString(createElement(w6.SentValues, { value: sent }, createElement(w6.RepairChoice, { repairs })))
+    renderToString(
+      createElement(w6.SentValues, { value: sent }, createElement(w6.RepairChoice, { repairs })),
+    )
 
   it('the switched-on form shows the repair choice inside the form, after the note and before the button', () => {
-    const html = renderToString(createElement(w6.BookingForm, { clinic: 'test-clinic', slots: [{ id: 1, label: 'Saturday 10 October, 15:00', placesLeft: 2 }], requestId: randomUUID(), repairs }))
-    expect(html).toMatch(/<form[^>]*>.*name="note".*<legend[^>]*>.*Repairs.*name="repairs".*Book this slot.*<\/form>/s)
+    const html = renderToString(
+      createElement(w6.BookingForm, {
+        clinic: 'test-clinic',
+        slots: [{ id: 1, label: 'Saturday 10 October, 15:00', placesLeft: 2 }],
+        requestId: randomUUID(),
+        repairs,
+      }),
+    )
+    expect(html).toMatch(
+      /<form[^>]*>.*name="note".*<legend[^>]*>.*Repairs.*name="repairs".*Book this slot.*<\/form>/s,
+    )
     expect(html.match(/<input type="checkbox"[^>]*name="repairs"/g)).toHaveLength(3)
   })
 
@@ -113,14 +169,22 @@ describe.runIf(EXAMPLE.repairs)('W6 switched on: the ticked repairs survive a fa
     const source = readFileSync(path.join(root, 'src/components/site/BookingForm.tsx'), 'utf8')
     const fixed = withPriceFix(switchedOn(source))
     // A learner's copy that already shows the price has no fix left to copy; the starter has it.
-    if (!source.includes("//   const label = repair.name + ', ' + formatPrice(repair.price)")) return
+    if (!source.includes("//   const label = repair.name + ', ' + formatPrice(repair.price)"))
+      return
     expect(fixed).not.toBeNull()
     if (fixed === null) return
     const file = path.join(folder, 'BookingForm.w6-price.tsx')
     writeFileSync(file, fixed)
     const priced: typeof w6 = await import(/* @vite-ignore */ file)
-    const html = renderToString(createElement(priced.SentValues, { value: { timeSlot: '', name: '', email: '', note: '' } }, createElement(priced.RepairChoice, { repairs })))
-    for (const label of ['Check, EUR 10', 'Each small repair, EUR 5', 'Full service, EUR 45']) expect(html).toContain(label)
+    const html = renderToString(
+      createElement(
+        priced.SentValues,
+        { value: { timeSlot: '', name: '', email: '', note: '' } },
+        createElement(priced.RepairChoice, { repairs }),
+      ),
+    )
+    for (const label of ['Check, EUR 10', 'Each small repair, EUR 5', 'Full service, EUR 45'])
+      expect(html).toContain(label)
   })
 
   it('shows each repair by name, none ticked on a fresh form', () => {
@@ -132,11 +196,24 @@ describe.runIf(EXAMPLE.repairs)('W6 switched on: the ticked repairs survive a fa
 
   const form = (fields: Record<string, string | string[]>) => {
     const data = new FormData()
-    const all = { clinic: 'test-clinic', requestId: randomUUID(), name: 'Test Person', email: 'test@campuscycle.example', timeSlot: String(slotId), ...fields }
-    for (const [name, value] of Object.entries(all)) for (const one of [value].flat()) data.append(name, one)
+    const all = {
+      clinic: 'test-clinic',
+      requestId: randomUUID(),
+      name: 'Test Person',
+      email: 'test@campuscycle.example',
+      timeSlot: String(slotId),
+      ...fields,
+    }
+    for (const [name, value] of Object.entries(all))
+      for (const one of [value].flat()) data.append(name, one)
     return data
   }
-  const send = (fields: Record<string, string | string[]>) => createBooking(form(fields), { payload: p, ip: `198.51.100.${Math.floor(Math.random() * 200) + 1}`, now: new Date() })
+  const send = (fields: Record<string, string | string[]>) =>
+    createBooking(form(fields), {
+      payload: p,
+      ip: `198.51.100.${Math.floor(Math.random() * 200) + 1}`,
+      now: new Date(),
+    })
 
   it('after a field problem, a full slot and a lost answer, the ticked repairs come back ticked', async () => {
     // A field problem (the server's answer).
@@ -147,7 +224,11 @@ describe.runIf(EXAMPLE.repairs)('W6 switched on: the ticked repairs survive a fa
     // A full slot (the server's answer): someone else took the one place first.
     expect((await send({})).ok).toBe(true)
     const full = await send({ repairs: ['2'] })
-    expect(full).toMatchObject({ ok: false, message: 'This slot is full. Choose another time.', values: { timeSlot: '', repairs: ['2'] } })
+    expect(full).toMatchObject({
+      ok: false,
+      message: 'This slot is full. Choose another time.',
+      values: { timeSlot: '', repairs: ['2'] },
+    })
     expect(checked(render(!full.ok && full.values))).toEqual(['2'])
 
     // No answer at all: the form keeps what it sent itself.
@@ -160,9 +241,14 @@ describe.runIf(EXAMPLE.repairs)('W6 switched on: the ticked repairs survive a fa
     expect(result).toMatchObject({ values: { repairs: ['2', '3'] } })
     // After W6 (a learner's copy: bookings.repairs and the two createBooking lines are switched on),
     // the ticked repairs are saved, so they must be real ones.
-    const w6 = p.collections.bookings.config.flattenedFields.some((field) => field.name === 'repairs')
+    const w6 = p.collections.bookings.config.flattenedFields.some(
+      (field) => field.name === 'repairs',
+    )
     if (w6) await resetCollections(['repairs'])
-    const ticked = w6 ? (await p.create({ collection: 'repairs', data: { name: 'Each small repair', price: 5 } })).id : 2
+    const ticked = w6
+      ? (await p.create({ collection: 'repairs', data: { name: 'Each small repair', price: 5 } }))
+          .id
+      : 2
     const saved = await send({ repairs: [String(ticked)] })
     expect(saved.ok).toBe(true)
     const [booking] = (await p.find({ collection: 'bookings', depth: 0 })).docs
